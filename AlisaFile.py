@@ -2,10 +2,11 @@ from flask import Flask, request
 import logging
 import json
 from dbase import db
+from models import User
 
 app = Flask(__name__)
-
 logging.basicConfig(level=logging.INFO)
+
 skills = {
     'Total marks': [
         'итог'
@@ -37,6 +38,9 @@ skills = {
         'оценк'
     ]
 }
+
+sessionStorage = {}
+
 lessons = {
     'english': [
         'английский',
@@ -190,6 +194,8 @@ lessons = {
 
 }
 
+connection = True
+
 
 @app.route('/post', methods=['POST'])
 def main():
@@ -218,21 +224,80 @@ def handle_dialog(req, res):
         res['response']['text'] = 'Привет! Это моё умение предназначено для помощи школьнику и его родителям. ' \
                                   'Я могу подсказать последнее домашнее задание или вывести таблицу из отчетов,' \
                                   ' сказать средний балл или перечислить оценки по предмету, подвести итоги' \
-                                  ' четвертей. Сначала скажи свой логин и пароль для входа в "Сетевой Город",' \
-                                  ' чтобы мне было с чем работать.'
+                                  ' четвертей. Сначала скажите Ваш логин и пароль для входа в "Сетевой Город",' \
+                                  ' чтобы мне было с чем работать (первым сообщением скажите логин, а вторым - пароль).'
+
+        sessionStorage[user_id]['login'] = None
+        sessionStorage[user_id]['password'] = None
 
         return
 
-    for skill in skills:
-        for word in skills[skill]:
-            if word in user_answer:
-                alisa_answer = get_info(user_id, skill, user_answer)
-                res['response']['text'] = alisa_answer
-                return
+    if sessionStorage['name'] is None:
+        if 'помощь' in user_answer or 'помогите' in user_answer or 'документация' in user_answer:
+            alisa_answer = 'Напишите Ваш логин для входа в "Сетевой Город".'
+            res['response']['text'] = alisa_answer
 
-    alisa_answer = 'Увы, я не понимаю то, что Вы говорите. Попробуйте сформулировать по-другому.'
-    res['response']['text'] = alisa_answer
-    return
+            return
+
+        sessionStorage[user_id]['login'] = user_answer
+
+        alisa_answer = 'Отлично! А теперь скажите Ваш пароль для входа в "Сетевой город".'
+        res['response']['text'] = alisa_answer
+
+        return
+
+    if sessionStorage['password'] is None:
+        if 'помощь' in user_answer or 'помогите' in user_answer or 'документация' in user_answer:
+            alisa_answer = 'Напишите Ваш пароль для входа в "Сетевой Город".'
+            res['response']['text'] = alisa_answer
+
+            return
+
+        sessionStorage[user_id]['password'] = user_answer
+
+        alisa_answer = 'Отлично! А сейчас я попробую подключиться к серверам "Сетевого города". ' \
+                       'Переспросите меня через несколько секунд, я вхожу в транс в поисках Ваших оценок и заданий.'
+        res['response']['text'] = alisa_answer
+
+        return
+
+    if not connection and User.query.filter_by(id=int(user_id)).first():
+        alisa_answer = 'Что-то пошло не так! Я не могу подключиться к Вашему дневнику. Проверьте правильность ' \
+                       'введенных данных или повторите позднее!'
+        res['response']['text'] = alisa_answer
+
+        sessionStorage[user_id]['login'] = None
+        sessionStorage[user_id]['password'] = None
+
+        return
+
+    elif not connection:
+        alisa_answer = 'Что-то пошло не так! Я не могу подключиться к Вашему дневнику. Повторите попытку похже!'
+        res['response']['text'] = alisa_answer
+
+        return
+
+    elif connection:
+        alisa_answer = 'Подключение прошло успешно! Спрашивайте, что Вы хотите узнать.'
+        res['response']['text'] = alisa_answer
+
+        if User.query.filter_by(id=int(user_id)).first():
+            return
+        else:
+            User.add(user_id=user_id, login=sessionStorage['login'], password=sessionStorage['password'])
+            return
+
+    for skill in skills:
+            for word in skills[skill]:
+                if word in user_answer:
+                    alisa_answer = get_info(user_id, skill, user_answer)
+                    res['response']['text'] = alisa_answer
+                    return
+
+            alisa_answer = 'Увы, я не понимаю то, что Вы говорите. Попробуйте сформулировать по-другому.'
+            res['response']['text'] = alisa_answer
+
+            return
 
 
 def get_info(user_id, skill, user_answer):

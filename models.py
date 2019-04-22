@@ -4,7 +4,7 @@ from dbase import db
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
-    id_for_alice = db.Column(db.String(1000), nullable=False)
+    user_id = db.Column(db.String(1000), nullable=False)
 
     login = db.Column(db.String(1000), nullable=False, unique=True)
     password = db.Column(db.String(1000), nullable=False)
@@ -14,14 +14,14 @@ class User(db.Model):
             self.id,
             self.login,
             self.password,
-            self.id_for_alice
+            self.user_id
 
         )
 
     @staticmethod
-    def add(login, password, id_for_alice):
+    def add(user_id, login, password):
         user = User(
-            id_for_alice=id_for_alice,
+            user_id=user_id,
             login=login,
             password=password
         )
