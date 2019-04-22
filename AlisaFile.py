@@ -1,168 +1,199 @@
 from flask import Flask, request
 import logging
 import json
-
+from dbase import db
 
 app = Flask(__name__)
 
 logging.basicConfig(level=logging.INFO)
-sessionStorage = {}
-lesson = {
-        'english': [
-            'английский',
-            'английскому',
-            'англичанский',
-            'англичанскому',
-            'англ',
-            'англу',
-            'англичанка',
-        ],
+skills = {
+    'Total marks': [
+        'итог'
+    ],
 
-        'german': [
-            'немецкий',
-            'немецкому',
-            'немчанка',
-            'немцу',
-            'немецу',
-        ],
+    'The table': [
+        'табли'
+    ],
 
-        'french': [
-            'французский',
-            'французскому',
-            'француский',
-            'францускому',
-            'французкий',
-            'французкому',
-            'францу',
-            'француженка',
-            'франциха',
-            'франка',
-        ],
+    'The last homework': [
+        'дз',
+        'дом',
+        'домашнее задание',
+        'задали',
+        'задала',
+        'что по',
+        'домашка',
+        'домашке',
+        'домашку',
+        'homework'
+    ],
 
-        'russian': [
-            'русский',
-            'руский',
-            'русскому',
-            'рускому',
-            'русу',
-            'русиш',
-            'русишу',
-            'русо',
-            'руском',
-            'русском',
-            'русский'
-        ],
+    'Average mark': [
+        'средн',
+    ],
 
-        'literature': [
-            'литература',
-            'литературе',
-            'литра',
-            'литре',
-            'литер',
-            'литеру',
-            'литераторша'
-        ],
+    'All marks': [
+        'все',
+        'оценк'
+    ]
+}
+lessons = {
+    'english': [
+        'английский',
+        'английскому',
+        'англичанский',
+        'англичанскому',
+        'англ',
+        'англу',
+        'англичанка',
+    ],
 
-        'main_language': [
-            'родной'
-        ],
+    'german': [
+        'немецкий',
+        'немецкому',
+        'немчанка',
+        'немцу',
+        'немецу',
+    ],
 
-        'main_literature': [
-            'родная'
-        ],
+    'french': [
+        'французский',
+        'французскому',
+        'француский',
+        'францускому',
+        'французкий',
+        'французкому',
+        'францу',
+        'француженка',
+        'франциха',
+        'франка',
+    ],
 
-        'maths': [
-            'математика',
-            'математике',
-            'матеша',
-            'матеше',
-            'матика',
-            'матике',
-        ],
+    'russian': [
+        'русский',
+        'руский',
+        'русскому',
+        'рускому',
+        'русу',
+        'русиш',
+        'русишу',
+        'русо',
+        'руском',
+        'русском',
+        'русский'
+    ],
 
-        'geometry': [
-            'геометрия',
-            'геометрии',
-            'геома',
-            'геоме',
-        ],
+    'literature': [
+        'литература',
+        'литературе',
+        'литра',
+        'литре',
+        'литер',
+        'литеру',
+        'литераторша'
+    ],
 
-        'algebra': [
-            'алгебра',
-            'алгебре',
-            'алге'
-        ],
+    'main_language': [
+        'родной'
+    ],
 
-        'geography': [
-            'география',
-            'географии',
-            'геогр'
-        ],
+    'main_literature': [
+        'родная'
+    ],
 
-        'biology': [
-            'био',
-        ],
+    'maths': [
+        'математика',
+        'математике',
+        'матеша',
+        'матеше',
+        'матика',
+        'матике',
+    ],
 
-        'chemist': [
-            'хими'
-        ],
+    'geometry': [
+        'геометрия',
+        'геометрии',
+        'геома',
+        'геоме',
+    ],
 
-        'physics': [
-            'физи'
-        ],
+    'algebra': [
+        'алгебра',
+        'алгебре',
+        'алге'
+    ],
 
-        'physical_educal': [
-            'физк',
-            'физр',
-            'физ-р'
-        ],
+    'geography': [
+        'география',
+        'географии',
+        'геогр'
+    ],
 
-        'technology': [
-            'техн'
-        ],
+    'biology': [
+        'био',
+    ],
 
-        'obzh': [
-            'обж'
-        ],
+    'chemist': [
+        'хими'
+    ],
 
-        'art': [
-            'изо',
-            'рисование'
-        ],
+    'physics': [
+        'физи'
+    ],
 
-        'drawing': [
-            'черч',
-            'черт'
-        ],
-    
-        'world_history': [
-            'мировая ист',
-            'мировой ист',
-            'мир ист'
-        ],
+    'physical_educal': [
+        'физк',
+        'физр',
+        'физ-р'
+    ],
 
-        'russian_history': [
-            'ист'
-        ],
+    'technology': [
+        'техн'
+    ],
 
-        'society': [
-            'общ'
-        ],
+    'obzh': [
+        'обж'
+    ],
 
-        'it': [
-            'икт',
-            'инф'
-        ],
+    'art': [
+        'изо',
+        'рисование'
+    ],
 
-        'ops': [
-            'опс'
-        ]
+    'drawing': [
+        'черч',
+        'черт'
+    ],
 
-    }
+    'world_history': [
+        'мировая ист',
+        'мировой ист',
+        'мир ист'
+    ],
+
+    'russian_history': [
+        'ист'
+    ],
+
+    'society': [
+        'общ'
+    ],
+
+    'it': [
+        'икт',
+        'инф'
+    ],
+
+    'ops': [
+        'опс'
+    ]
+
+}
 
 
 @app.route('/post', methods=['POST'])
 def main():
+    db.create_all()
     logging.info('Request: %r', request.json)
     response = {
         'session': request.json['session'],
@@ -183,70 +214,51 @@ def handle_dialog(req, res):
     user_id = req['session']['user_id']
     user_answer = req['request']['original_utterance'].lower()
 
-    sessionStorage[user_id] = {
-        'The last homework': [
-            'дз',
-            'дом',
-            'домашнее задание',
-            'задали',
-            'задала',
-            'что по',
-            'домашка',
-            'домашке',
-            'домашку',
-            'homework'
-        ],
-
-        'The last mark': [
-            'hello'
-        ],
-
-        'Average mark': [
-
-        ],
-
-        'All marks': [
-
-        ],
-
-        'The table': [
-            'vodka'
-        ],
-
-        'Total mark': [
-
-        ]
-    }
-
     if req['session']['new']:
         res['response']['text'] = 'Привет! Это моё умение предназначено для помощи школьнику и его родителям. ' \
-                                  'Я могу подсказать последнее домашнее задание или оценку по какому-либо предмету,' \
-                                  ' сказать средний балл, перечислить оценки или подвести итоги четверти. Сначала ' \
-                                  'скажи свой логин и пароль для входа в "Сетевой Город", чтобы мне было с чем' \
-                                  ' работать.'
+                                  'Я могу подсказать последнее домашнее задание или вывести таблицу из отчетов,' \
+                                  ' сказать средний балл или перечислить оценки по предмету, подвести итоги' \
+                                  ' четвертей. Сначала скажи свой логин и пароль для входа в "Сетевой Город",' \
+                                  ' чтобы мне было с чем работать.'
 
         return
 
-    for skill in sessionStorage[user_id]:
-        for word in sessionStorage[user_id][skill]:
+    for skill in skills:
+        for word in skills[skill]:
             if word in user_answer:
-                alisa_answer = get_info(user_id, skill)
+                alisa_answer = get_info(user_id, skill, user_answer)
                 res['response']['text'] = alisa_answer
                 return
 
-    alisa_answer = 'Увы, я не понимаю то, что Вы говорите. Попробуйте спросить по-другому.'
+    alisa_answer = 'Увы, я не понимаю то, что Вы говорите. Попробуйте сформулировать по-другому.'
     res['response']['text'] = alisa_answer
     return
 
 
-def get_info(user_id, skill):
+def get_info(user_id, skill, user_answer):
     print(user_id)
-    if skill == 'The table':
-        return 'Здарова это водяра'
-    elif skill == 'The last mark':
-        return 'Привет зая'
-    else:
-        return 'Пока зая'
+
+    if skill == 'Total marks':
+        return 'Здарова, это итоги четвертей. Организуем.'
+    elif skill == 'The last homework':
+        for lesson in lessons:
+            for word in lessons[lesson]:
+                if word in user_answer:
+                    return lesson
+    elif skill == 'Average mark':
+        for lesson in lessons:
+            for word in lessons[lesson]:
+                if word in user_answer:
+                    return lesson
+    elif skill == 'All marks':
+        for lesson in lessons:
+            for word in lessons[lesson]:
+                if word in user_answer:
+                    return lesson
+    elif skill == 'The table':
+        return 'Здарова, это таблица с предметами. Организуем.'
+
+    return 'Увы, я не понимаю то, что Вы говорите. Попробуйте сформулировать по-другому.'
 
 
 if __name__ == '__main__':
