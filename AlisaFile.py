@@ -6,6 +6,7 @@ from models import User
 
 
 def init_route(app, db):
+
     logging.basicConfig(level=logging.INFO)
 
     skills = {
@@ -195,13 +196,6 @@ def init_route(app, db):
 
     }
 
-    connection = {
-        'connection_done': False,
-        'connection_failed': False,
-        'connection': False,
-        'authorisation': True
-    }
-
     @app.route('/post', methods=['POST'])
     def main():
         db.create_all()
@@ -226,23 +220,27 @@ def init_route(app, db):
 
         if user_id not in sessionStorage:
             sessionStorage[user_id] = {}
+            sessionStorage[user_id]['connection'] = 'waiting'
             sessionStorage[user_id]['login'] = None
             sessionStorage[user_id]['password'] = None
+            sessionStorage[user_id]['authorisation'] = False
 
         if req['session']['new']:
             alisa_answer = 'Привет! Это моё умение предназначено для помощи школьнику и его родителям. ' \
-                           'Я могу подсказать последнее домашнее задание или вывести таблицу из отчетов,' \
-                           ' сказать средний балл или перечислить оценки по предмету, подвести итоги' \
-                           ' четвертей.'
+                                      'Я могу подсказать последнее домашнее задание или вывести таблицу из отчетов,' \
+                                      ' сказать средний балл или перечислить оценки по предмету, подвести итоги' \
+                                      ' четвертей.'
 
             if not User.query.filter_by(user_id=user_id).first():
-                connection['authorisation'] = True
+                sessionStorage[user_id]['authorisation'] = True
                 alisa_answer += ' Сначала скажите Ваш логин и пароль для входа в "Сетевой Город", ' \
                                 'чтобы мне было с чем работать (первым сообщением скажите логин, а вторым - пароль).'
+            else:
+                reload(user_id, [])
             res['response']['text'] = alisa_answer
             return
 
-        if connection['authorisation']:
+        if sessionStorage[user_id]['authorisation']:
             if sessionStorage[user_id]['login'] is None:
                 if 'помощь' in user_answer or 'помогите' in user_answer or 'документация' in user_answer:
                     alisa_answer = 'Напишите Ваш логин для входа в "Сетевой Город".'
@@ -266,53 +264,47 @@ def init_route(app, db):
                                'Переспросите меня через несколько секунд, я вхожу в транс в поисках' \
                                ' Ваших оценок и заданий.'
                 res['response']['text'] = alisa_answer
-                connection['authorisation'] = False
-                connect()  # Функция должна обновлять базу данных
+                sessionStorage[user_id]['authorisation'] = False
+                reload(user_id, [sessionStorage[user_id]['login'],
+                                 sessionStorage[user_id]['password']])  #
+                # Функция должна обновлять базу данных
                 return
 
-        elif not connection['connection']:
-            if connection['connection_failed']:
-                connection['connection_failed'] = False
-
-                if not User.query.filter_by(user_id=user_id).first():
-                    alisa_answer = 'Что-то пошло не так! Я не могу подключиться к Вашему дневнику. ' \
-                                   'Проверьте правильность введенных данных или повторите позднее!'
-                    res['response']['text'] = alisa_answer
-
-                    sessionStorage[user_id]['login'] = None
-                    sessionStorage[user_id]['password'] = None
-                    connection['authorisation'] = True
-                    return
-
-                else:
-                    alisa_answer = 'Что-то пошло не так! Я не могу подключиться к Вашему дневнику.' \
-                                   ' Повторите попытку похже!'
-                    res['response']['text'] = alisa_answer
-                    return
-
-            elif connection['connection_done']:
-                alisa_answer = 'Подключение прошло успешно! Спрашивайте, что Вы хотите узнать.'
-                res['response']['text'] = alisa_answer
-                connection['connection_done'] = False
-                connection['connection'] = True
-
-                if User.query.filter_by(user_id=user_id).first():
-                    return
-                else:
-                    User.add(user_id=user_id, login=sessionStorage[user_id]['login'],
-                             password=sessionStorage[user_id]['password'])
-                    return
-            else:
+        elif not sessionStorage[user_id]['connection'][0]:  # Если нет подключения
+            if sessionStorage[user_id]['connection'][2] == 'waiting':
                 alisa_answer = 'Я все еще подключаюсь! Подождите чуть-чуть!'
                 res['response']['text'] = alisa_answer
                 return
 
-        for skill in skills:
-            for word in skills[skill]:
-                if word in user_answer:
-                    alisa_answer = get_info(user_id, skill, user_answer)
-                    res['response']['text'] = alisa_answer
-                    return
+            if sessionStorage[user_id]['connection'][1] == 'new_account':
+                alisa_answer = 'Что-то пошло не так! Я не могу подключиться к Вашему дневнику. ' \
+                                   'Проверьте правильность введенных данных или повторите позднее!'
+                res['response']['text'] = alisa_answer
+                sessionStorage[user_id]['login'] = None
+                sessionStorage[user_id]['password'] = None
+                sessionStorage[user_id]['authorisation'] = True
+                return
+
+            else:
+                alisa_answer = 'Что-то пошло не так! Я не могу подключиться к Вашему дневнику.' \
+                               ' Повторите попытку похже!'
+                res['response']['text'] = alisa_answer
+                return
+
+        elif sessionStorage[user_id]['connection'][0] == True:
+            sessionStorage[user_id]['connection'] = 'connected'
+
+            alisa_answer = 'Подключение прошло успешно! Спрашивайте, что Вы хотите узнать.'
+            res['response']['text'] = alisa_answer
+            return
+
+        if sessionStorage[user_id]['connection'] == 'connected':
+            for skill in skills:
+                for word in skills[skill]:
+                    if word in user_answer:
+                        alisa_answer = get_info(user_id, skill, user_answer)
+                        res['response']['text'] = alisa_answer
+                        return
 
         alisa_answer = 'Увы, я не понимаю то, что Вы говорите. Попробуйте сформулировать по-другому.'
         res['response']['text'] = alisa_answer
@@ -340,7 +332,24 @@ def init_route(app, db):
                         return lesson
         elif skill == 'The table':
             return 'Здарова, это таблица с предметами. Организуем.'
+
         return 'Увы, я не понимаю то, что Вы говорите. Попробуйте сформулировать по-другому.'
 
-    def connect():
-        connection['connection_done'] = True
+    def reload(user_id, data):
+        if data:
+            result = [True, 'new_account', 'failed']
+            if result[0]:
+                User.add(user_id=user_id, login=data[0], password=data[1])
+
+            sessionStorage[user_id]['connection'] = [result[0], result[1],
+                                                     result[2]]
+            return
+            # Подключаемся к серверам сетевого города. В случае успеха
+            # заносим данные в базу данных.
+            # Если нет - возвращаем список [False, 'waiting'], если не успели
+            # И [False, 'failed'], если не смогли.
+        else:
+            result = [True, 'old_account', 'failed']
+            sessionStorage[user_id]['connection'] = [result[0], result[1],
+                                                     result[2]]
+            return
