@@ -1,6 +1,4 @@
-wiki = {'13231': {'asdasd': [1, 2, 3], 'asg': [3, 2, 1]}}
-
-for i in wiki['13231']:
-    print(i)
-    for g in i:
-        print(g)
+if 'adsad'[0] is True:
+    print(1)
+else:
+    print(2)
