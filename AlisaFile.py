@@ -2,7 +2,8 @@ from flask import request
 import logging
 import json
 from requests_sorting import lessons, skills, logout, reconnect
-from models import User
+from models import Region, City, School, User
+
 
 
 def init_route(app, db):
@@ -39,21 +40,30 @@ def init_route(app, db):
                                       ' четвертей. Всю эту информацию я беру с сайта "Сетевой город. Образование"' \
                                       ' Для обновления моей информации о Вашем дневнике напишите "обновись", "обнови информацию",' \
                                       ' "перезайди в дневник" или что-то в этом духе. Чтобы я забыла Ваши логин и пароль' \
-                                      ' попросите меня выйти из Вашего аккаунта. Чтобы перечитать мои возможности напишите' \
+                                      ' попросите меня выйти из Вашего аккаунта. Если Вы хотите завершить работу со мной - ' \
+                                      'скажите волшебную фразу: "на этом все". Чтобы перечитать мои возможности напишите' \
                                       ' "помощь" или "Что ты можешь?".'
 
             if not User.query.filter_by(user_id=user_id).first():
                 sessionStorage[user_id] = {}
-                sessionStorage[user_id]['connection'] = [False, 'new_account', 'waiting']
+                sessionStorage[user_id]['region'] = None
+                sessionStorage[user_id]['city'] = None
+                sessionStorage[user_id]['school'] = None
                 sessionStorage[user_id]['login'] = None
                 sessionStorage[user_id]['password'] = None
                 sessionStorage[user_id]['authorisation'] = True
-                alisa_answer += ' Но сначала скажите Ваш логин и пароль для входа в "Сетевой Город", ' \
-                                'чтобы мне было с чем работать (первым сообщением скажите логин, а вторым - пароль).'
+                sessionStorage[user_id]['connection'] = [False, 'new_account', 'waiting']
+
+                alisa_answer += 'Но сначала нужно авторизироваться, чтобы мне было с чем работать. ' \
+                                      'Для авторизации мне нужен номер Вашего региона, населённый пункт, школа, ' \
+                                      'а также Ваш логин и пароль. Сейчас я прошу Вас написать номер региона или его название (отдельным сообщением).'
             else:
                 user = User.query.filter_by(user_id=user_id).first()
 
                 sessionStorage[user_id] = {}
+                sessionStorage[user_id]['region'] = user.region
+                sessionStorage[user_id]['city'] = user.city
+                sessionStorage[user_id]['school'] = user.school
                 sessionStorage[user_id]['login'] = user.login
                 sessionStorage[user_id]['password'] = user.password
                 sessionStorage[user_id]['connection'] = ['connected', 'old_account', 'waiting']
@@ -67,9 +77,150 @@ def init_route(app, db):
             res['response']['text'] = alisa_answer
             return
 
+        if 'на этом вс' in user_answer:  # Завершение работы с умением
+            res['response']['end_session'] = True
+            alisa_answer = 'Спасибо, что использовали "Сетевой город" в Яндекс.Алисе! До новых встреч!'
+            res['response']['text'] = alisa_answer
+
+            sessionStorage[user_id] = {}
+            sessionStorage[user_id]['region'] = None
+            sessionStorage[user_id]['city'] = None
+            sessionStorage[user_id]['school'] = None
+            sessionStorage[user_id]['login'] = None
+            sessionStorage[user_id]['password'] = None
+            sessionStorage[user_id]['authorisation'] = True
+            sessionStorage[user_id]['connection'] = [False, 'new_account', 'waiting']
+
+            return
+
         # noinspection PySimplifyBooleanCheck
-        logging.warning(str(sessionStorage[user_id]['authorisation']) * 340)
         if sessionStorage[user_id]['authorisation']:
+            if sessionStorage[user_id]['region'] is None:
+                if 'помощь' in user_answer or 'помоги' in user_answer:
+                    alisa_answer = 'Напишите номер Вашего региона для входа в "Сетевой Город".'
+                    res['response']['text'] = alisa_answer
+                    return
+                if 'что ты можешь' in user_answer:
+                    alisa_answer = 'Я могу подсказать последнее домашнее задание или вывести таблицу из отчетов,' \
+                                      ' сказать средний балл или перечислить оценки по предмету, подвести итоги' \
+                                      ' четвертей.' \
+                                      ' Для обновления моей информации о Вашем дневнике напишите "обновись", "обнови информацию",' \
+                                      ' "перезайди в дневник" или что-то в этом духе. Чтобы я забыла Ваши логин и пароль' \
+                                      ' попросите меня выйти из Вашего аккаунта. Чтобы перечитать мои возможности напишите' \
+                                      ' "Помощь" или "Что ты можешь?". Чтобы завершить работу с "Сетевым городом" напишите "на этом все".' \
+                                      ' А сейчас напишите номер Вашего субъекта РФ.'
+                    res['response']['text'] = alisa_answer
+                    return
+
+                if not Region.query.filter_by(regionid=user_answer).first():
+                    alisa_answer = 'Вы уверены, что такой регион существует? Я о нем не слышала!'
+                    res['response']['text'] = alisa_answer
+                    return
+                else:
+                    sessionStorage[user_id]['region'] = user_answer
+                    alisa_answer = 'Отлично! Теперь выберите название Вашего населённого пункта!'  # Достать названия всех
+                    res['response']['text'] = alisa_answer
+                    res['response']['buttons'] = [{
+                            'title': 'Помощь',
+                            'hide': False
+                        }]
+
+                    cities = City.query.filter_by(region_id=sessionStorage[user_id]['region'])
+                    for city in cities:
+                        res['response']['buttons'].append({
+                            'title': city.name,
+                            'hide': False
+                            })
+                    return
+
+            if sessionStorage[user_id]['city'] is None:
+                if 'помощь' in user_answer or 'помоги' in user_answer:
+                    alisa_answer = 'Выберите Ваш населенный пункт для входа в "Сетевой Город".'
+                    res['response']['text'] = alisa_answer
+                    return
+                if 'что ты можешь' in user_answer:
+                    alisa_answer = 'Я могу подсказать последнее домашнее задание или вывести таблицу из отчетов,' \
+                                      ' сказать средний балл или перечислить оценки по предмету, подвести итоги' \
+                                      ' четвертей.' \
+                                      ' Для обновления моей информации о Вашем дневнике напишите "обновись", "обнови информацию",' \
+                                      ' "перезайди в дневник" или что-то в этом духе. Чтобы я забыла Ваши логин и пароль' \
+                                      ' попросите меня выйти из Вашего аккаунта. Чтобы перечитать мои возможности напишите' \
+                                      ' "Помощь" или "Что ты можешь?". Чтобы завершить работу с "Сетевым городом" напишите "на этом все".' \
+                                      ' А сейчас выберите Ваш населенный пункт.'
+                    res['response']['text'] = alisa_answer
+                    return
+
+                if not City.query.filter_by(region_id=sessionStorage[user_id]['region'], name=user_answer).first():
+                    alisa_answer = 'Что это за место? Я о нем не слышала!'
+                    res['response']['text'] = alisa_answer
+                    res['response']['buttons'] = [{
+                            'title': 'Помощь',
+                            'hide': False
+                        }]
+
+                    cities = City.query.filter_by(region_id=sessionStorage[user_id]['region'])
+                    for city in cities:
+                        res['response']['buttons'].append({
+                            'title': city.name,
+                            'hide': False
+                            })
+                    return
+                else:
+                    sessionStorage[user_id]['city'] = City.query.filter_by(region_id=sessionStorage[user_id]['region'], name=user_answer).first().CityID
+                    alisa_answer = 'Отлично! Теперь выберите название Вашей образовательной организации!'  # Достать названия всех
+                    res['response']['text'] = alisa_answer
+
+                    res['response']['buttons'] = [{
+                            'title': 'Помощь',
+                            'hide': False
+                        }]
+
+                    schools = School.query.filter_by(city_id=sessionStorage[user_id]['city'])
+                    for school in schools:
+                        res['response']['buttons'].append({
+                            'title': school.name,
+                            'hide': False
+                        })
+                    return
+
+            if sessionStorage[user_id]['school'] is None:
+                if 'помощь' in user_answer or 'помоги' in user_answer:
+                    alisa_answer = 'Выберите Вашу образовательную организацию для входа в "Сетевой Город".'
+                    res['response']['text'] = alisa_answer
+                    return
+                if 'что ты можешь' in user_answer:
+                    alisa_answer = 'Я могу подсказать последнее домашнее задание или вывести таблицу из отчетов,' \
+                                      ' сказать средний балл или перечислить оценки по предмету, подвести итоги' \
+                                      ' четвертей.' \
+                                      ' Для обновления моей информации о Вашем дневнике напишите "обновись", "обнови информацию",' \
+                                      ' "перезайди в дневник" или что-то в этом духе. Чтобы я забыла Ваши логин и пароль' \
+                                      ' попросите меня выйти из Вашего аккаунта. Чтобы перечитать мои возможности напишите' \
+                                      ' "Помощь" или "Что ты можешь?". Чтобы завершить работу с "Сетевым городом" напишите "на этом все".' \
+                                      ' А сейчас выберите Вашу образовательную организацию.'
+                    res['response']['text'] = alisa_answer
+                    return
+
+                if not School.query.filter_by(city_id=sessionStorage[user_id]['city'], name=user_answer).first():
+                    alisa_answer = 'Что это за место? Я о нем не слышала!'
+                    res['response']['text'] = alisa_answer
+                    res['response']['buttons'] = [{
+                            'title': 'Помощь',
+                            'hide': False
+                        }]
+
+                    schools = School.query.filter_by(city_id=sessionStorage[user_id]['city'])
+                    for school in schools:
+                        res['response']['buttons'].append({
+                            'title': school.name,
+                            'hide': False
+                        })
+                    return
+                else:
+                    sessionStorage[user_id]['school'] = School.query.filter_by(city_id=sessionStorage[user_id]['city'], name=user_answer).first().SchoolID
+                    alisa_answer = 'Отлично! Теперь скажите мне Ваш логин от аккаунта в "Сетевом городе"!'  # Достать названия всех
+                    res['response']['text'] = alisa_answer
+                    return
+
             if sessionStorage[user_id]['login'] is None:
                 if 'помощь' in user_answer or 'помоги' in user_answer:
                     alisa_answer = 'Напишите Ваш логин для входа в "Сетевой Город".'
@@ -83,7 +234,8 @@ def init_route(app, db):
                                       ' Для обновления моей информации о Вашем дневнике напишите "обновись", "обнови информацию",' \
                                       ' "перезайди в дневник" или что-то в этом духе. Чтобы я забыла Ваши логин и пароль' \
                                       ' попросите меня выйти из Вашего аккаунта. Чтобы перечитать мои возможности напишите' \
-                                      ' "Помощь" или "Что ты можешь?". А сейчас напишите логин от Вашего аккаунта в "Сетевом городе".'
+                                      ' "Помощь" или "Что ты можешь?". Чтобы завершить работу с "Сетевым городом" напишите "на этом все".' \
+                                      ' А сейчас напишите логин от Вашего аккаунта в "Сетевом городе".'
 
                     res['response']['text'] = alisa_answer
                     return
@@ -107,7 +259,8 @@ def init_route(app, db):
                                       ' Для обновления моей информации о Вашем дневнике напишите "обновись", "обнови информацию",' \
                                       ' "перезайди в дневник" или что-то в этом духе. Чтобы я забыла Ваши логин и пароль' \
                                       ' попросите меня выйти из Вашего аккаунта. Чтобы перечитать мои возможности напишите' \
-                                      ' "Помощь" или "Что ты можешь?". А сейчас напишите пароль от Вашего аккаунта в "Сетевом городе".'
+                                      ' "Помощь" или "Что ты можешь?". Чтобы завершить работу с "Сетевым городом" напишите "на этом все".' \
+                                      ' А сейчас напишите пароль от Вашего аккаунта в "Сетевом городе".'
 
                     res['response']['text'] = alisa_answer
                     return
@@ -118,8 +271,14 @@ def init_route(app, db):
                                ' Ваших оценок и заданий.'
                 res['response']['text'] = alisa_answer
                 sessionStorage[user_id]['authorisation'] = False
-                reload(user_id, [sessionStorage[user_id]['login'],
-                                 sessionStorage[user_id]['password']])  #
+
+                data = [
+                    sessionStorage[user_id]['login'], sessionStorage[user_id]['password'],
+                    sessionStorage[user_id]['region'], sessionStorage[user_id]['city'],
+                    sessionStorage[user_id]['school']
+                    ]
+
+                reload(user_id, data)  #
                 # Функция должна обновлять базу данных
                 return
 
@@ -136,20 +295,17 @@ def init_route(app, db):
                 sessionStorage[user_id]['login'] = None
                 sessionStorage[user_id]['password'] = None  # Обнуляем настройки.
                 sessionStorage[user_id]['authorisation'] = True
-
-                User.delete(User.query.filter_by(user_id=user_id).first())  # Удаляем из базы данных старые данные.
                 return
 
             else:
                 alisa_answer = 'Что-то пошло не так! Я не могу подключиться к Вашему дневнику.' \
-                               ' Повторите попытку похже!'
+                               ' Повторите попытку позже!'
                 sessionStorage[user_id]['connection'][0] = 'remake'
                 res['response']['text'] = alisa_answer
                 return
 
         if sessionStorage[user_id]['connection'][0] is True:
             sessionStorage[user_id]['connection'][0] = 'connected'
-
             alisa_answer = 'Подключение прошло успешно! Спрашивайте, что Вы хотите узнать.'
             res['response']['text'] = alisa_answer
             return
@@ -161,15 +317,16 @@ def init_route(app, db):
                                    ' аккаунта, к которому Вы сейчас хотите подключиться.'
                     res['response']['text'] = alisa_answer
 
-                    sessionStorage[user_id]['connection'] = ['connected', 'old_account', 'waiting']
+                    sessionStorage[user_id]['connection'] = []
                     sessionStorage[user_id]['login'] = None
                     sessionStorage[user_id]['password'] = None  # Приводим к стартовым настройкам
                     sessionStorage[user_id]['authorisation'] = True
-
-                    User.delete(User.query.filter_by(user_id=user_id).first())  # Удаляем из базы данных старые данные.
                     return
 
+            alisa_answer = 'Я вновь собираю информацию с Вашего аккаунта. Подождите чуть-чуть, пожалуйста.'
+            res['response']['text'] = alisa_answer
             reload(user_id, [])
+            return
 
         if sessionStorage[user_id]['connection'][0] == 'connected':
             if 'помощь' in user_answer or 'помоги' in user_answer or 'что ты можешь' in user_answer:
@@ -178,8 +335,7 @@ def init_route(app, db):
                                       ' четвертей.' \
                                       ' Для обновления моей информации о Вашем дневнике напишите "обновись", "обнови информацию",' \
                                       ' "перезайди в дневник" или что-то в этом духе. Чтобы я забыла Ваши логин и пароль' \
-                                      ' попросите меня выйти из Вашего аккаунта. Чтобы перечитать мои возможности напишите' \
-                                      ' "Помощь" или "Что ты можешь?".'
+                                      ' попросите меня выйти из Вашего аккаунта. Чтобы завершить работу с "Сетевым городом" напишите "на этом все".'
 
                     res['response']['text'] = alisa_answer
                     return
@@ -226,17 +382,17 @@ def init_route(app, db):
             for lesson in lessons:
                 for word in lessons[lesson]:
                     if word in user_answer:
-                        return lesson
+                        return 'Последнее дз по ' + lesson
         elif skill == 'Average mark':
             for lesson in lessons:
                 for word in lessons[lesson]:
                     if word in user_answer:
-                        return lesson
+                        return 'Средняя оценка по ' + lesson
         elif skill == 'All marks':
             for lesson in lessons:
                 for word in lessons[lesson]:
                     if word in user_answer:
-                        return lesson
+                        return 'Оценки по ' + lesson
         elif skill == 'The table':
             return 'Здарова, это таблица с предметами. Организуем.'
 
@@ -245,24 +401,28 @@ def init_route(app, db):
     def reload(user_id, data):  # Загрузка данных пользователя в базу данных.
         # result = [Обновилось ли, старый или новый аккаунт, причина необновления] - результат загрузки базы данных
         if data:
-            result = [True, 'new_account', 'failed']
+            result = handle(data, 'new_account')
+            if result[0]:  # Если подключение успешно - добавляем пользователя в базу данных
+                User.add(user_id=user_id, login=data[0], password=data[1],
+                region_id=data[2], city_id=data[3], school_id=data[4])
 
-            if result[0]:
-                User.add(user_id=user_id, login=data[0], password=data[1])
-
-            sessionStorage[user_id]['connection'] = [result[0], result[1],
-                                                     result[2]]
+            sessionStorage[user_id]['connection'] = result.copy()
             return
             # Подключаемся к серверам сетевого города. В случае успеха
             # заносим данные в базу данных.
             # Если нет - возвращаем список [False, 'waiting'], если не успели
             # И [False, 'failed'], если не смогли.
-        else:
-            result = [True, 'old_account', 'failed']
+        else:  # Если без data - значит данные уже хранятся в db
+            data = [sessionStorage[user_id]['login'], sessionStorage[user_id]['password'],
+            sessionStorage[user_id]['region'], sessionStorage[user_id]['city'],
+            sessionStorage[user_id]['school']]
+            result = handle(data, 'old_account')
             if result[0]:
-                User.add(user_id=user_id, login=sessionStorage[user_id]['login'],
-                         password=sessionStorage[user_id]['password'])
+                User.add(user_id=user_id, login=data[0], password=data[1],
+                region_id=data[2], city_id=data[3], school_id=data[4])
 
-            sessionStorage[user_id]['connection'] = [result[0], result[1],
-                                                     result[2]]
+            sessionStorage[user_id]['connection'] = result.copy()
             return
+
+    def handle(user_info, user_long):
+        return [True, user_long, 'failed']
