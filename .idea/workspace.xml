@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="783db455-cb06-43ca-a8c5-fe2e19fee3e7" name="Default Changelist" comment="" />
+    <list default="true" id="783db455-cb06-43ca-a8c5-fe2e19fee3e7" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/AlisaFile.py" beforeDir="false" afterPath="$PROJECT_DIR$/AlisaFile.py" afterDir="false" />
+    </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -13,8 +15,8 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/AlisaFile.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-6707">
-              <caret line="24" column="45" lean-forward="true" selection-start-line="24" selection-start-column="45" selection-end-line="24" selection-end-column="45" />
+            <state relative-caret-position="773">
+              <caret line="562" lean-forward="true" selection-start-line="562" selection-end-line="562" />
             </state>
           </provider>
         </entry>
@@ -106,8 +108,8 @@
         <option value="$PROJECT_DIR$/dbase.py" />
         <option value="$PROJECT_DIR$/../aliasasadsada/flask_app.py" />
         <option value="$PROJECT_DIR$/connection_flask.py" />
-        <option value="$PROJECT_DIR$/AlisaFile.py" />
         <option value="$PROJECT_DIR$/models.py" />
+        <option value="$PROJECT_DIR$/AlisaFile.py" />
       </list>
     </option>
   </component>
@@ -291,8 +293,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/AlisaFile.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-6707">
-          <caret line="24" column="45" lean-forward="true" selection-start-line="24" selection-start-column="45" selection-end-line="24" selection-end-column="45" />
+        <state relative-caret-position="773">
+          <caret line="562" lean-forward="true" selection-start-line="562" selection-end-line="562" />
         </state>
       </provider>
     </entry>
