@@ -6,12 +6,12 @@ from xml.etree import ElementTree
 app = Flask(__name__)
 
 
-@app.route("/")
 @app.route("/connect")
 def connect():
     login = request.args.get('login', default='мПетроваЛ20')
     password = request.args.get('password', default='Л631963')
     school = request.args.get('school', default='444')
+    user_id = request.args.get('school', default='444')
     url = 'https://sgo2test.ir-tech.ru/api/lacc.asp?Function=Login3&SchoolID=' + \
           school + '&Login=' + login + '&Password=' + password
     response = requests.get(url)
@@ -35,8 +35,7 @@ def format_info(response):
 def deep_xms(items, wiki, a):
     for item in items:
         try:
-            string = item.text.encode('ISO-8859-1').decode('windows-1251')
-            wiki[a] = string.encode('windows-1251').decode('UTF-8')
+            wiki[a] = item.text.encode('ISO-8859-1').decode('windows-1251')
             a = item.text.encode('ISO-8859-1').decode('windows-1251')
         except Exception:
             deep_xms(item, wiki, a)
