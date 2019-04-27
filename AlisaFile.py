@@ -1,9 +1,9 @@
 from flask import request
 import logging
 import json
+import requests
 from requests_sorting import lessons, skills, logout, reconnect
 from models import Region, City, School, User
-
 
 
 def init_route(app, db):
@@ -66,7 +66,7 @@ def init_route(app, db):
                 sessionStorage[user_id]['school'] = user.school
                 sessionStorage[user_id]['login'] = user.login
                 sessionStorage[user_id]['password'] = user.password
-                sessionStorage[user_id]['connection'] = ['connected', 'old_account', 'waiting']
+                sessionStorage[user_id]['connection'] = [False, 'old_account', 'waiting']
                 sessionStorage[user_id]['authorisation'] = False
 
                 alisa_answer += ' А сейчас я обновляю базу данных. Подождите чуть-чуть, пожалуйста!'
@@ -278,6 +278,8 @@ def init_route(app, db):
                     sessionStorage[user_id]['school']
                     ]
 
+                sessionStorage[user_id]['connection'] = [False, 'new_account', 'waiting']
+
                 reload(user_id, data)  #
                 # Функция должна обновлять базу данных
                 return
@@ -294,6 +296,9 @@ def init_route(app, db):
                 res['response']['text'] = alisa_answer
                 sessionStorage[user_id]['login'] = None
                 sessionStorage[user_id]['password'] = None  # Обнуляем настройки.
+                sessionStorage[user_id]['region'] = None
+                sessionStorage[user_id]['city'] = None
+                sessionStorage[user_id]['school'] = None
                 sessionStorage[user_id]['authorisation'] = True
                 return
 
@@ -318,6 +323,9 @@ def init_route(app, db):
                     res['response']['text'] = alisa_answer
 
                     sessionStorage[user_id]['connection'] = []
+                    sessionStorage[user_id]['region'] = None
+                    sessionStorage[user_id]['city'] = None
+                    sessionStorage[user_id]['school'] = None
                     sessionStorage[user_id]['login'] = None
                     sessionStorage[user_id]['password'] = None  # Приводим к стартовым настройкам
                     sessionStorage[user_id]['authorisation'] = True
@@ -325,6 +333,7 @@ def init_route(app, db):
 
             alisa_answer = 'Я вновь собираю информацию с Вашего аккаунта. Подождите чуть-чуть, пожалуйста.'
             res['response']['text'] = alisa_answer
+            sessionStorage[user_id]['connection'] = [False, 'old_account', 'waiting']
             reload(user_id, [])
             return
 
@@ -347,6 +356,9 @@ def init_route(app, db):
                     res['response']['text'] = alisa_answer
 
                     sessionStorage[user_id]['connection'] = ['connected', 'old_account', 'waiting']
+                    sessionStorage[user_id]['region'] = None
+                    sessionStorage[user_id]['city'] = None
+                    sessionStorage[user_id]['school'] = None
                     sessionStorage[user_id]['login'] = None
                     sessionStorage[user_id]['password'] = None  # Приводим к стартовым настройкам.
                     sessionStorage[user_id]['authorisation'] = True
@@ -358,6 +370,7 @@ def init_route(app, db):
                 if word in user_answer:
                     alisa_answer = 'Я вновь собираю информацию с Вашего аккаунта. Подождите чуть-чуть, пожалуйста.'
                     res['response']['text'] = alisa_answer
+                    sessionStorage[user_id]['connection'] = [False, 'new_account', 'waiting']
                     User.delete(User.query.filter_by(user_id=user_id).first())  # Удаляем из базы данных старые данные.
                     reload(user_id, [])
                     return
@@ -401,28 +414,35 @@ def init_route(app, db):
     def reload(user_id, data):  # Загрузка данных пользователя в базу данных.
         # result = [Обновилось ли, старый или новый аккаунт, причина необновления] - результат загрузки базы данных
         if data:
-            result = handle(data, 'new_account')
-            if result[0]:  # Если подключение успешно - добавляем пользователя в базу данных
+            result = handle(data)
+            if result:
                 User.add(user_id=user_id, login=data[0], password=data[1],
-                region_id=data[2], city_id=data[3], school_id=data[4])
-
-            sessionStorage[user_id]['connection'] = result.copy()
+                         region_id=data[2], city_id=data[3], school_id=data[4])
+                sessionStorage[user_id]['connection'] = [False, 'new_account', 'waiting']
+            else:
+                sessionStorage[user_id]['connection'] = [False, 'new_account', 'failed']
             return
-            # Подключаемся к серверам сетевого города. В случае успеха
-            # заносим данные в базу данных.
-            # Если нет - возвращаем список [False, 'waiting'], если не успели
-            # И [False, 'failed'], если не смогли.
+
         else:  # Если без data - значит данные уже хранятся в db
             data = [sessionStorage[user_id]['login'], sessionStorage[user_id]['password'],
-            sessionStorage[user_id]['region'], sessionStorage[user_id]['city'],
-            sessionStorage[user_id]['school']]
-            result = handle(data, 'old_account')
-            if result[0]:
+                    sessionStorage[user_id]['region'], sessionStorage[user_id]['city'],
+                    sessionStorage[user_id]['school']]
+            result = handle(data)
+            if result:
                 User.add(user_id=user_id, login=data[0], password=data[1],
-                region_id=data[2], city_id=data[3], school_id=data[4])
-
-            sessionStorage[user_id]['connection'] = result.copy()
+                         region_id=data[2], city_id=data[3], school_id=data[4])
+                sessionStorage[user_id]['connection'] = [False, 'old_account', 'waiting']
+            else:
+                sessionStorage[user_id]['connection'] = [False, 'old_account', 'failed']
             return
 
-    def handle(user_info, user_long):
-        return [True, user_long, 'failed']
+    def handle(user_info):
+        url = 'http://127.0.0.1:8080/connect?login={}&password={}&schoolid={}'.format(user_info[0], user_info[1],
+                                                                                      user_info[4])
+        response = requests.get(url).text
+        result = eval(response)  # Перевод строки в json
+
+        if result == {'10006': 'Invalid login or password'}:
+            return False
+
+        return True
